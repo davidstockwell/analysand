@@ -61,6 +61,10 @@ class Client(TimestampedModel):
         return self.alias
 
 
+    class Meta:
+        ordering = ['alias']
+
+
 class Assessment(TimestampedModel):
     assessment_client = models.ForeignKey(Client, on_delete=models.CASCADE)
     assessment_practitioner = models.ForeignKey(Practitioner, on_delete=models.CASCADE)
