@@ -60,7 +60,6 @@ class Client(TimestampedModel):
     def __str__(self):
         return self.alias
 
-
     class Meta:
         ordering = ['alias']
 
@@ -73,6 +72,9 @@ class Assessment(TimestampedModel):
 
     def __str__(self):
         return str(self.event)
+
+    class Meta:
+        ordering = ['-event__start']
 
 
 class ContractType(TimestampedModel):
@@ -101,6 +103,8 @@ class Contract(TimestampedModel):
     def __str__(self):
         return '{} - {} [{}]'.format(self.contract_client, self.contract_type, self.status)
 
+    class Meta:
+        ordering = ['-event__start']
 
 class ClientHolidayPeriod(TimestampedModel):
     holiday_client = models.ForeignKey(Client, on_delete=models.CASCADE)
@@ -129,3 +133,11 @@ class Session(Occurrence):
                 self.start.strftime('%Y-%m-%d %H:%M'),
                 self.attendance
             )
+
+    @property
+    def contract(self):
+        return Contract.objects.get(event=self.event)
+
+    @property
+    def client(self):
+        return Contract.objects.get(event=self.event).contract_client

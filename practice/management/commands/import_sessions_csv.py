@@ -2,8 +2,8 @@ import csv
 from dateutil import parser
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
-from practice.models import Contract, Assessment, Session
-from schedule.models import Event
+from practice.models import Practice, Practitioner, Client, Contract, Assessment, Session
+from schedule.models import Calendar, Event
 
 
 class Command(BaseCommand):
@@ -35,6 +35,10 @@ class Command(BaseCommand):
             reader = csv.reader(csvfile)
             row_index = 1
 
+            practice = Practice.objects.get(pk=options['practice_id'])
+            practitioner = Practitioner.objects.get(pk=options['practitioner_id'])
+            calendar = Calendar.objects.get(pk=options['calendar_id'])
+
             for row in reader:
                 if row_index == 1:
                     # Ignore header line
@@ -55,8 +59,8 @@ class Command(BaseCommand):
                         client = Client.objects.get(alias=client_alias)
 
                         assessment, created = Assessment.objects.get_or_create(
-                            assessment_practice__id=options['practice_id'],
-                            assessment_practitioner__id=options['practitioner_id'],
+                            assessment_practice=practice,
+                            assessment_practitioner=practitioner,
                             assessment_client=client
                         )
 
@@ -65,13 +69,13 @@ class Command(BaseCommand):
                                 title='Assessment ({})'.format(client_alias),
                                 start=session_date_start,
                                 end=session_date_end,
-                                calendar=options['calendar_id']
+                                calendar=calendar
                             )
 
                             assessment.event = event
                             assessment.save()
 
-                        session, created = Session.objects.create(
+                        session, created = Session.objects.get_or_create(
                             event=assessment.event,
                             title='Assessment ({})'.format(client_alias),
                             start=session_date.replace(hour=assessment.event.start.hour, minute=assessment.event.start.minute, second=0),
@@ -84,6 +88,7 @@ class Command(BaseCommand):
                         if created:
                             records_created += 1
                         else:
+                            self.stdout.write(self.style.WARNING('{} ({}) assessment skipped'.format(client_alias, session_date)))
                             records_skipped += 1
 
                     except Client.DoesNotExist:
@@ -99,13 +104,13 @@ class Command(BaseCommand):
                 else:
                     # Handle session
                     try:
-                        contract = Contract.objects.get(
+                        contract = Contract.objects.filter(
                             Q(event__end_recurring_period__gte=session_date_start) | Q(event__end_recurring_period__isnull=True),
                             contract_practice__id=options['practice_id'],
                             contract_practitioner__id=options['practitioner_id'],
                             contract_client__alias=client_alias,
                             event__start__lte=session_date_end
-                        )
+                        ).order_by('event__start').first()
 
                         session, created = Session.objects.get_or_create(
                             event=contract.event,
@@ -120,6 +125,7 @@ class Command(BaseCommand):
                         if created:
                             records_created += 1
                         else:
+                            self.stdout.write(self.style.WARNING('{} ({}) session skipped'.format(client_alias, session_date)))
                             records_skipped += 1
 
                     except Contract.DoesNotExist:
